@@ -1,10 +1,11 @@
 from typing import Any
 
 import structlog
+from django.db import transaction
 
 from core.base_model import Model
-from core.event_log_client import EventLogClient
 from core.use_case import UseCase, UseCaseRequest, UseCaseResponse
+from event_logs.processor import event_log_processor
 from users.models import User
 
 logger = structlog.get_logger(__name__)
@@ -35,6 +36,7 @@ class CreateUser(UseCase):
             'last_name': request.last_name,
         }
 
+    @transaction.atomic
     def _execute(self, request: CreateUserRequest) -> CreateUserResponse:
         logger.info('creating a new user')
 
@@ -54,14 +56,10 @@ class CreateUser(UseCase):
         return CreateUserResponse(error='User with this email already exists')
 
     def _log(self, user: User) -> None:
-        with EventLogClient.init() as client:
-            client.insert(
-                data=[
-                    UserCreated(
-                        email=user.email,
-                        first_name=user.first_name,
-                        last_name=user.last_name,
-                    ),
-                ],
-            )
+        event = UserCreated(
+            email=user.email,
+            first_name=user.first_name,
+            last_name=user.last_name,
+        )
 
+        event_log_processor.insert_to_outbox([event])

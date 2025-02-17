@@ -1,12 +1,14 @@
+import json
 import uuid
 from collections.abc import Generator
-from unittest.mock import ANY
 
 import pytest
 from clickhouse_connect.driver import Client
 from django.conf import settings
 
-from users.use_cases import CreateUser, CreateUserRequest, UserCreated
+from event_logs.models import LogEntry, LogEntryStatus
+from event_logs.tasks import process_outbox_events
+from users.use_cases import CreateUser, CreateUserRequest
 
 pytestmark = [pytest.mark.django_db]
 
@@ -45,24 +47,44 @@ def test_emails_are_unique(f_use_case: CreateUser) -> None:
     assert response.error == 'User with this email already exists'
 
 
-def test_event_log_entry_published(
-    f_use_case: CreateUser,
-    f_ch_client: Client,
-) -> None:
-    email = f'test_{uuid.uuid4()}@email.com'
+def test_event_inserted_to_outbox(f_use_case: CreateUser) -> None:
+    email = 'test@email.com'
     request = CreateUserRequest(
         email=email, first_name='Test', last_name='Testovich',
     )
 
     f_use_case.execute(request)
-    log = f_ch_client.query("SELECT * FROM default.event_log WHERE event_type = 'user_created'")
 
-    assert log.result_rows == [
-        (
-            'user_created',
-            ANY,
-            'Local',
-            UserCreated(email=email, first_name='Test', last_name='Testovich').model_dump_json(),
-            1,
-        ),
-    ]
+    event = LogEntry.objects.first()
+
+    assert event.event_type == 'user_created'
+    assert event.status == LogEntryStatus.SCHEDULED
+
+
+def test_event_outbox_processed(f_use_case: CreateUser, f_ch_client: Client) -> None:
+    email = f'test_{uuid.uuid4()}@example.com'
+    first_name = 'Test'
+    last_name = 'Testovich'
+    request = CreateUserRequest(
+        email=email, first_name=first_name, last_name=last_name,
+    )
+
+    f_use_case.execute(request)
+
+    process_outbox_events()
+
+    log = f_ch_client.query("SELECT * FROM default.event_log WHERE event_type = 'user_created'")
+    assert len(log.result_rows) == 1
+
+    row = log.result_rows[0]
+    assert row[0] == 'user_created'
+
+    context = json.loads(row[3])
+    assert context == {
+        'email': email,
+        'first_name': first_name,
+        'last_name': last_name,
+    }
+
+    event = LogEntry.objects.first()
+    assert event.status == LogEntryStatus.SUCCEEDED

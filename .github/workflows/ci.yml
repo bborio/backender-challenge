@@ -1,0 +1,17 @@
+name: CI/CD pipeline
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository code
+        uses: actions/checkout@v3
+      - name: env
+        run: cp src/core/.env.ci src/core/.env
+      - name: CI
+        run: docker compose -f docker-compose.tests.yml up --build --abort-on-container-exit --exit-code-from app

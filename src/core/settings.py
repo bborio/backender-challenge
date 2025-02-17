@@ -30,6 +30,7 @@ INSTALLED_APPS = [
 
     # project apps
     'users',
+    "event_logs"
 ]
 
 MIDDLEWARE = [
@@ -67,7 +68,7 @@ DATABASES = {
 }
 
 CLICKHOUSE_HOST = env('CLICKHOUSE_HOST', default='clickhouse')
-CLICKHOUSE_PORT = env('CLICKHOUSE_HOST', default=8123)
+CLICKHOUSE_PORT = env('CLICKHOUSE_PORT', default=8123)
 CLICKHOUSE_USER = os.getenv('CLICKHOUSE_USER', default='')
 CLICKHOUSE_PASSWORD = os.getenv('CLICKHOUSE_PASSWORD', default='')
 CLICKHOUSE_SCHEMA = os.getenv('CLICKHOUSE_SCHEMA', default='default')
@@ -77,6 +78,7 @@ CLICKHOUSE_URI = (
     f'{CLICKHOUSE_PROTOCOL}'
 )
 CLICKHOUSE_EVENT_LOG_TABLE_NAME = 'event_log'
+CLICKHOUSE_EVENT_BATCH_SIZE = 100
 
 AUTH_PASSWORD_VALIDATORS = [
     {
@@ -110,7 +112,7 @@ STATIC_ROOT = env("STATIC_ROOT")
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-CELERY_BROKER = env("CELERY_BROKER", default="redis://localhost:6379/0")
+CELERY_BROKER_URL = env("CELERY_BROKER_URL", default="redis://redis:6379/0")
 CELERY_ALWAYS_EAGER = env("CELERY_ALWAYS_EAGER", default=DEBUG)
 
 LOG_FORMATTER = env("LOG_FORMATTER", default="console")
